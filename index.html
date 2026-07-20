@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 윤리 시뮬레이터: 편향과 딜레마</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        // On page load or when changing themes, best to add inline in `head` to avoid FOUC
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        tailwind.config = {
+            darkMode: 'class', // Enable dark mode via class
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans KR"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#0f172a',    // slate-900
+                            card: '#1e293b',    // slate-800
+                            border: '#334155',  // slate-700
+                            primary: '#38bdf8', // sky-400
+                            secondary: '#a3e635', // lime-400
+                            accent: '#818cf8',  // indigo-400
+                            danger: '#f43f5e',  // rose-500
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-up': 'slideUp 0.5s ease-out forwards',
+                        'slide-down': 'slideDown 2s linear infinite',
+                    },
+                    keyframes: {
+                        slideUp: {
+                            '0%': { opacity: 0, transform: 'translateY(20px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        },
+                        slideDown: {
+                            '0%': { top: '0%' },
+                            '100%': { top: '100%' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #f8fafc; /* slate-50 for light mode */
+            color: #0f172a; /* slate-900 */
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        html.dark body {
+            background-color: #020617; /* Very dark slate */
+            color: #f8fafc;
+        }
+        
+        /* Custom Scrollbar - Responsive to theme */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #e2e8f0; }
+        html.dark ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        html.dark ::-webkit-scrollbar-thumb { background: #334155; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        html.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        html.dark .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .step-container {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .step-container.active {
+            display: block;
+            opacity: 1;
+        }
+
+        .btn-glow {
+            transition: all 0.3s ease;
+        }
+        html.dark .btn-glow:hover {
+            box-shadow: 0 0 15px currentColor;
+            transform: translateY(-2px);
+        }
+        .btn-glow:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
+        }
+
+        /* Loading Spinner for AI */
+        .ai-loader {
+            border: 4px solid rgba(56, 189, 248, 0.2);
+            border-left-color: #38bdf8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Train Track CSS */
+        .track {
+            height: 12px;
+            background: linear-gradient(90deg, transparent 50%, #94a3b8 50%);
+            background-size: 20px 100%;
+            border-top: 4px solid #cbd5e1;
+            border-bottom: 4px solid #cbd5e1;
+        }
+        html.dark .track {
+            background: linear-gradient(90deg, transparent 50%, #64748b 50%);
+            background-size: 20px 100%;
+            border-top: 4px solid #94a3b8;
+            border-bottom: 4px solid #94a3b8;
+        }
+        
+        .road-pattern {
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMjBoNDBNMjAgMHY0MCIgc3Ryb2tlPSIjOTRhM2I4IiBzdHJva2Utd2lkdGg9IjEiIGZpbGw9Im5vbmUiLz48L3N2Zz4=');
+        }
+        html.dark .road-pattern {
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMjBoNDBNMjAgMHY0MCIgc3Ryb2tlPSIjMzM0MTU1IiBzdHJva2Utd2lkdGg9IjEiIGZpbGw9Im5vbmUiLz48L3N2Zz4=');
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans selection:bg-brand-primary selection:text-white">
+
+    <!-- Navigation / Progress Bar -->
+    <nav class="fixed top-0 w-full z-50 glass-panel border-b border-slate-200 dark:border-brand-border transition-colors">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <i class="fa-solid fa-microchip text-brand-secondary text-xl"></i>
+                    <span class="font-bold text-lg tracking-wide text-slate-800 dark:text-white">AI Ethics <span class="text-brand-primary">Simulator</span></span>
+                </div>
+                <!-- Progress Indicators (Desktop) -->
+                <div class="hidden md:flex space-x-8">
+                    <button onclick="navToStep(1)" id="nav-btn-1" class="text-brand-primary font-bold border-b-2 border-brand-primary px-1 py-4 transition-colors">1. 편향성 체험</button>
+                    <button onclick="navToStep(2)" id="nav-btn-2" class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 px-1 py-4 transition-colors">2. 트롤리 딜레마</button>
+                    <button onclick="navToStep(3)" id="nav-btn-3" class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 px-1 py-4 transition-colors">3. 자율주행 딜레마</button>
+                    <button onclick="navToStep(4)" id="nav-btn-4" class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 px-1 py-4 transition-colors">4. 모둠 토론</button>
+                </div>
+                
+                <!-- Right Side Controls (Mobile step + Theme Toggle) -->
+                <div class="flex items-center gap-4">
+                    <div class="md:hidden flex items-center">
+                        <span id="mobile-step-indicator" class="text-sm font-semibold text-brand-primary">Step 1/4</span>
+                    </div>
+                    <!-- Theme Toggle Button -->
+                    <button id="theme-toggle" type="button" class="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-sm p-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary">
+                        <i id="theme-icon" class="fa-solid fa-moon text-lg w-5 h-5 flex justify-center items-center"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Progress Bar Line -->
+        <div class="h-1 bg-slate-200 dark:bg-brand-dark w-full">
+            <div id="progress-bar" class="h-full bg-gradient-to-r from-brand-secondary to-brand-primary w-1/4 transition-all duration-500"></div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full transition-colors">
+        
+        <!-- ========================================== -->
+        <!-- STEP 1: AI 편향성 시뮬레이션 (AI Interview) -->
+        <!-- ========================================== -->
+        <section id="step-1" class="step-container active animate-slide-up">
+            <div class="text-center mb-10">
+                <p class="text-brand-secondary font-bold tracking-wider text-sm mb-2 drop-shadow-sm">MISSION 01</p>
+                <h1 class="text-4xl md:text-5xl font-black mb-4 text-slate-900 dark:text-white transition-colors">인공지능의 <span class="text-brand-primary">편향성</span> 체험</h1>
+                <p class="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto transition-colors">당신은 지금 'AI 면접'을 보고 있습니다. 인공지능은 과연 100% 공정하고 객관적으로 당신을 평가할까요?</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 items-stretch">
+                <!-- AI Simulator Panel -->
+                <div class="bg-white dark:bg-brand-card rounded-2xl p-6 border border-slate-200 dark:border-brand-border shadow-lg transition-colors flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800 dark:text-white transition-colors">
+                            <i class="fa-solid fa-video text-brand-primary"></i> AI 화상 면접 시스템 접속 중...
+                        </h3>
+                        <div class="bg-slate-100 dark:bg-brand-dark rounded-xl aspect-video relative overflow-hidden flex items-center justify-center mb-6 border border-slate-300 dark:border-slate-700 transition-colors">
+                            <div id="camera-feed" class="text-center">
+                                <i class="fa-solid fa-user text-6xl text-slate-400 dark:text-slate-600 mb-2 transition-colors"></i>
+                                <p class="text-slate-500 text-sm">지원자 대기 중</p>
+                            </div>
+                            
+                            <!-- AI Scanning Overlay (Hidden by default) -->
+                            <div id="ai-scanning" class="absolute inset-0 bg-white/90 dark:bg-brand-dark/90 hidden flex-col items-center justify-center transition-colors">
+                                <div class="ai-loader mb-4"></div>
+                                <p class="text-brand-primary font-bold animate-pulse">데이터 분석 중...</p>
+                                <div class="absolute top-0 left-0 w-full h-1 bg-brand-primary animate-slide-down"></div>
+                            </div>
+                            
+                            <!-- AI Result Overlay (Hidden by default) -->
+                            <div id="ai-result-overlay" class="absolute inset-0 bg-white/95 dark:bg-brand-dark/95 hidden flex-col items-center justify-center p-6 text-center transition-colors">
+                                <i class="fa-solid fa-circle-xmark text-5xl text-brand-danger mb-4"></i>
+                                <h4 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">불합격 (Rejected)</h4>
+                                <p id="bias-reason" class="text-rose-600 dark:text-rose-300 text-sm bg-rose-50 dark:bg-rose-950/50 p-3 rounded-lg border border-rose-200 dark:border-rose-900/50 transition-colors"></p>
+                            </div>
+                        </div>
+                        
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mb-4 transition-colors">
+                            * 이 AI는 과거 합격자 데이터(특정 성별, 표정, 억양 위주)를 바탕으로 학습되었습니다.
+                        </p>
+                    </div>
+                    
+                    <button id="btn-start-interview" onclick="runAiInterview()" class="w-full bg-brand-primary hover:bg-sky-500 text-white dark:text-slate-900 font-bold text-lg py-4 rounded-xl btn-glow flex justify-center items-center gap-2 shadow-md">
+                        <i class="fa-solid fa-play"></i> 면접 시작하기
+                    </button>
+                </div>
+
+                <!-- Theory Panel -->
+                <div class="flex flex-col gap-6">
+                    <div class="bg-white dark:bg-brand-card rounded-2xl p-6 border border-slate-200 dark:border-brand-border shadow-md dark:shadow-lg transition-colors">
+                        <h3 class="text-xl font-bold mb-3 text-brand-secondary drop-shadow-sm">왜 불공정한 결과가 나왔을까?</h3>
+                        <ul class="space-y-4">
+                            <li class="flex items-start gap-3">
+                                <div class="bg-slate-100 dark:bg-brand-dark p-2 rounded-lg text-brand-primary transition-colors"><i class="fa-solid fa-database"></i></div>
+                                <div>
+                                    <strong class="block text-slate-800 dark:text-white transition-colors">학습 데이터 편향</strong>
+                                    <p class="text-slate-500 dark:text-slate-400 text-sm transition-colors">과거의 편견이 담긴 데이터(예: 특정 인종/성별 위주의 합격 기록)를 그대로 학습함.</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <div class="bg-slate-100 dark:bg-brand-dark p-2 rounded-lg text-brand-secondary transition-colors"><i class="fa-solid fa-code-branch"></i></div>
+                                <div>
+                                    <strong class="block text-slate-800 dark:text-white transition-colors">알고리즘 편향</strong>
+                                    <p class="text-slate-500 dark:text-slate-400 text-sm transition-colors">개발자가 의도치 않게 특정 속성(외모, 목소리 톤)에 더 큰 가중치를 부여함.</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white dark:bg-brand-card rounded-2xl p-6 border border-slate-200 dark:border-brand-border shadow-md dark:shadow-lg flex-grow transition-colors">
+                        <h3 class="text-lg font-bold mb-4 text-slate-800 dark:text-white transition-colors">인간 vs AI 편향 비교</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead>
+                                    <tr class="text-brand-primary border-b border-slate-200 dark:border-slate-700 transition-colors">
+                                        <th class="pb-2">비교 항목</th>
+                                        <th class="pb-2">인간</th>
+                                        <th class="pb-2">인공지능</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-slate-600 dark:text-slate-300 transition-colors">
+                                    <tr class="border-b border-slate-100 dark:border-slate-700/50 transition-colors">
+                                        <td class="py-3 font-semibold text-slate-800 dark:text-white transition-colors">수정 방법</td>
+                                        <td class="py-3 pr-2">교육과 자각을 통해 수정</td>
+                                        <td class="py-3 text-brand-secondary font-medium">데이터/알고리즘 직접 변경</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 font-semibold text-slate-800 dark:text-white transition-colors">영향력</td>
+                                        <td class="py-3 pr-2">개인적 판단 수준</td>
+                                        <td class="py-3 text-brand-danger font-medium">시스템 전체에 동시다발적 확산</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-10 text-right">
+                <button onclick="navToStep(2)" class="text-brand-primary dark:hover:text-white hover:text-sky-600 font-bold py-2 px-6 rounded-full border border-brand-primary hover:bg-sky-50 dark:hover:bg-brand-primary transition-all flex items-center gap-2 ml-auto">
+                    다음: 트롤리 딜레마 <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- STEP 2: 트롤리 딜레마 (Trolley Dilemma) -->
+        <!-- ========================================== -->
+        <section id="step-2" class="step-container hidden">
+            <div class="text-center mb-10">
+                <p class="text-brand-secondary font-bold tracking-wider text-sm mb-2 drop-shadow-sm">MISSION 02</p>
+                <h1 class="text-4xl md:text-5xl font-black mb-4 text-slate-900 dark:text-white transition-colors"><span class="text-brand-primary">트롤리</span> 딜레마</h1>
+                <p class="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto transition-colors">브레이크가 고장 난 전차가 돌진하고 있습니다. 당신의 도덕적 판단은 무엇입니까?</p>
+            </div>
+
+            <div class="bg-white dark:bg-brand-card rounded-2xl p-4 md:p-8 border border-slate-200 dark:border-brand-border shadow-xl relative overflow-hidden transition-colors">
+                <!-- Interactive Track Visualization -->
+                <div class="relative h-64 bg-slate-100 dark:bg-brand-dark rounded-xl mb-8 flex items-center p-4 border border-slate-200 dark:border-slate-700 transition-colors shadow-inner">
+                    <!-- Train -->
+                    <div id="trolley-train" class="absolute left-4 z-10 transition-all duration-1000 ease-in-out">
+                        <div class="bg-brand-primary w-16 h-12 rounded-lg flex items-center justify-center text-white dark:text-slate-900 font-black text-xl shadow-[0_0_15px_rgba(56,189,248,0.5)]">
+                            <i class="fa-solid fa-train"></i>
+                        </div>
+                    </div>
+
+                    <!-- Main Track (Straight) -->
+                    <div class="absolute w-full top-1/2 -translate-y-1/2 left-0 pr-16 flex items-center justify-end">
+                        <div class="track w-full absolute z-0"></div>
+                        <div class="flex gap-2 z-10" id="people-straight">
+                            <i class="fa-solid fa-person text-3xl text-rose-500 dark:text-rose-400"></i>
+                            <i class="fa-solid fa-person text-3xl text-rose-500 dark:text-rose-400"></i>
+                            <i class="fa-solid fa-person text-3xl text-rose-500 dark:text-rose-400"></i>
+                            <i class="fa-solid fa-person text-3xl text-rose-500 dark:text-rose-400"></i>
+                            <i class="fa-solid fa-person text-3xl text-rose-500 dark:text-rose-400"></i>
+                        </div>
+                    </div>
+
+                    <!-- Diverted Track (Upwards) -->
+                    <div class="absolute w-1/2 top-1/4 right-0 pr-16 flex items-center justify-end">
+                        <div class="track w-full absolute z-0 origin-left -rotate-[20deg]"></div>
+                        <div class="flex gap-2 z-10 -translate-y-8" id="person-divert">
+                            <i class="fa-solid fa-person text-3xl text-brand-secondary drop-shadow-md"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Lever -->
+                    <div class="absolute bottom-4 right-1/2 translate-x-1/2 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-600 flex flex-col items-center shadow-md transition-colors">
+                        <div id="lever-handle" class="w-2 h-8 bg-slate-400 rounded-full transition-transform duration-300 origin-bottom -rotate-45"></div>
+                        <div class="w-6 h-4 bg-slate-500 rounded mt-1"></div>
+                        <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-bold">전환기</span>
+                    </div>
+                </div>
+
+                <!-- Choice Buttons -->
+                <div id="trolley-choices" class="grid md:grid-cols-2 gap-4">
+                    <button onclick="makeTrolleyChoice('straight')" class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-rose-200 dark:border-rose-900 hover:border-rose-400 dark:hover:border-rose-500 p-6 rounded-xl transition-all group flex flex-col items-center text-center shadow-sm">
+                        <div class="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-500/20 text-rose-500 dark:text-rose-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-forward text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2 transition-colors">그대로 둔다 (직진)</h3>
+                        <p class="text-slate-500 dark:text-slate-400 text-sm transition-colors">결과: 5명 희생</p>
+                    </button>
+
+                    <button onclick="makeTrolleyChoice('divert')" class="bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-lime-200 dark:border-lime-900 hover:border-brand-secondary p-6 rounded-xl transition-all group flex flex-col items-center text-center shadow-sm">
+                        <div class="w-12 h-12 rounded-full bg-lime-100 dark:bg-lime-500/20 text-lime-600 dark:text-brand-secondary flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-code-branch text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2 transition-colors">선로 전환기를 당긴다</h3>
+                        <p class="text-slate-500 dark:text-slate-400 text-sm transition-colors">결과: 1명 희생, 5명 생존</p>
+                    </button>
+                </div>
+
+                <!-- Results / Stats (Hidden by default) -->
+                <div id="trolley-result" class="hidden mt-8 bg-slate-50 dark:bg-brand-dark p-6 rounded-xl border border-slate-200 dark:border-slate-700 text-center animate-slide-up transition-colors shadow-inner">
+                    <h3 class="text-2xl font-bold text-brand-primary mb-2">사람들은 보통 어떻게 선택할까?</h3>
+                    <p class="text-slate-600 dark:text-slate-300 mb-6 transition-colors">(2007년 5000명 대상 설문 조사 결과)</p>
+                    
+                    <div class="flex flex-col gap-4 max-w-lg mx-auto">
+                        <div class="flex items-center gap-4">
+                            <span class="w-24 text-right text-sm text-slate-600 dark:text-slate-400 font-medium">선로 변경<br><span class="text-xs">(1명 희생)</span></span>
+                            <div class="flex-grow h-6 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
+                                <div class="h-full bg-brand-secondary flex items-center px-2 text-xs font-bold text-slate-900" style="width: 89%;">89%</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="w-24 text-right text-sm text-slate-600 dark:text-slate-400 font-medium">그대로 두기<br><span class="text-xs">(5명 희생)</span></span>
+                            <div class="flex-grow h-6 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
+                                <div class="h-full bg-rose-500 flex items-center px-2 text-xs font-bold text-white" style="width: 11%;">11%</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="mt-6 text-sm text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800/50 p-3 rounded inline-block border border-slate-200 dark:border-transparent transition-colors shadow-sm">
+                        대다수가 다수를 위해 소수의 희생을 허용하지만, 이는 정답이 있는 문제가 아닌 <strong>'윤리적 딜레마'</strong>를 보여줍니다.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-10 flex justify-between">
+                <button onclick="navToStep(1)" class="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-4 py-2 transition-colors font-medium"><i class="fa-solid fa-arrow-left"></i> 이전</button>
+                <button onclick="navToStep(3)" class="text-brand-primary dark:hover:text-white hover:text-sky-600 font-bold py-2 px-6 rounded-full border border-brand-primary hover:bg-sky-50 dark:hover:bg-brand-primary transition-all flex items-center gap-2">
+                    다음: 자율주행 딜레마 <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- STEP 3: 자율주행 자동차 딜레마 -->
+        <!-- ========================================== -->
+        <section id="step-3" class="step-container hidden">
+             <div class="text-center mb-10">
+                <p class="text-brand-secondary font-bold tracking-wider text-sm mb-2 drop-shadow-sm">MISSION 03</p>
+                <h1 class="text-4xl md:text-5xl font-black mb-4 text-slate-900 dark:text-white transition-colors"><span class="text-brand-primary">자율주행</span> 딜레마</h1>
+                <p class="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto transition-colors">AI가 운전하는 자동차의 브레이크가 고장났습니다. 충돌을 피할 수 없는 상황, AI는 누구를 구하도록 프로그래밍 되어야 할까요?</p>
+            </div>
+
+            <div class="grid lg:grid-cols-5 gap-8">
+                <!-- Interactive Choice Area -->
+                <div class="lg:col-span-2 bg-white dark:bg-brand-card rounded-2xl p-6 border border-slate-200 dark:border-brand-border shadow-lg flex flex-col transition-colors">
+                    <div class="relative h-48 bg-slate-100 dark:bg-slate-900 rounded-xl mb-6 overflow-hidden border border-slate-200 dark:border-slate-700 flex justify-center items-end pb-4 transition-colors shadow-inner">
+                        <!-- Road -->
+                        <div class="absolute inset-0 road-pattern opacity-40 dark:opacity-30 perspective-1000 transition-all"></div>
+                        <div class="w-full h-1/2 bg-gradient-to-t from-slate-200 dark:from-slate-800 to-transparent absolute bottom-0 transition-colors"></div>
+                        
+                        <!-- Entities -->
+                        <div class="z-10 flex w-full justify-around items-center px-4">
+                            <div class="text-center">
+                                <i class="fa-solid fa-car-burst text-5xl text-brand-primary drop-shadow-md dark:drop-shadow-[0_0_10px_rgba(56,189,248,0.8)] mb-2"></i>
+                                <span class="block text-xs font-bold text-brand-primary bg-slate-800 dark:bg-brand-dark px-2 py-1 rounded">운전자</span>
+                            </div>
+                            <div class="text-4xl text-rose-500 animate-pulse font-black drop-shadow-md">VS</div>
+                            <div class="text-center">
+                                <i class="fa-solid fa-person-walking text-5xl text-brand-secondary drop-shadow-md dark:drop-shadow-[0_0_10px_rgba(163,230,53,0.8)] mb-2"></i>
+                                <span class="block text-xs font-bold text-brand-secondary bg-slate-800 dark:bg-brand-dark px-2 py-1 rounded">보행자 (무단횡단)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-bold mb-4 text-center text-slate-800 dark:text-white transition-colors">당신이 자율주행 AI 개발자라면?</h3>
+                    <div class="flex flex-col gap-3 flex-grow justify-center">
+                        <button onclick="showMitData('driver')" class="bg-slate-50 dark:bg-slate-800 hover:bg-brand-primary dark:hover:bg-brand-primary hover:text-white dark:hover:text-slate-900 text-slate-700 dark:text-white font-bold py-4 rounded-xl border border-slate-300 dark:border-slate-600 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-shield-halved"></i> 운전자 보호 우선
+                        </button>
+                        <button onclick="showMitData('pedestrian')" class="bg-slate-50 dark:bg-slate-800 hover:bg-brand-secondary dark:hover:bg-brand-secondary hover:text-slate-900 dark:hover:text-slate-900 text-slate-700 dark:text-white font-bold py-4 rounded-xl border border-slate-300 dark:border-slate-600 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-shield-heart"></i> 보행자 보호 우선
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MIT Moral Machine Data (Initially hidden or blurred) -->
+                <div class="lg:col-span-3 bg-white dark:bg-brand-card rounded-2xl p-6 border border-slate-200 dark:border-brand-border shadow-lg relative transition-colors">
+                    
+                    <div id="mit-data-overlay" class="absolute inset-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl transition-colors">
+                        <i class="fa-solid fa-lock text-4xl text-slate-400 dark:text-slate-500 mb-4"></i>
+                        <p class="text-slate-800 dark:text-white font-bold text-lg drop-shadow-sm">먼저 좌측에서 본인의 의견을 선택해 주세요.</p>
+                    </div>
+
+                    <div class="h-full flex flex-col">
+                        <div class="mb-6 flex justify-between items-end">
+                            <div>
+                                <h3 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2 transition-colors">
+                                    <i class="fa-solid fa-chart-bar text-brand-accent"></i> MIT 모럴 머신 연구 결과
+                                </h3>
+                                <p class="text-sm text-slate-500 dark:text-slate-400 transition-colors">전 세계 230만 명 대상 우선 보호 대상 순위 (2018)</p>
+                            </div>
+                            <span class="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded font-medium shadow-sm transition-colors">글로벌 평균</span>
+                        </div>
+
+                        <!-- Bar Chart -->
+                        <div class="space-y-4 flex-grow flex flex-col justify-center">
+                            <!-- Item 1 -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-bold text-brand-primary">1위: 유모차 끄는 사람</span>
+                                    <span class="text-slate-500 dark:text-slate-400 text-xs font-medium">가장 보호해야 함</span>
+                                </div>
+                                <div class="h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner transition-colors">
+                                    <div class="h-full bg-gradient-to-r from-sky-400 to-brand-primary rounded-full" style="width: 100%;"></div>
+                                </div>
+                            </div>
+                            <!-- Item 2 -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-bold text-indigo-500 dark:text-brand-accent">2, 3위: 소녀 / 소년</span>
+                                </div>
+                                <div class="h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner transition-colors">
+                                    <div class="h-full bg-gradient-to-r from-indigo-400 to-indigo-500 dark:from-indigo-600 dark:to-brand-accent rounded-full" style="width: 85%;"></div>
+                                </div>
+                            </div>
+                            <!-- Item 3 -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-bold text-lime-600 dark:text-brand-secondary">4, 5위: 임신 여성 / 의사</span>
+                                </div>
+                                <div class="h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner transition-colors">
+                                    <div class="h-full bg-gradient-to-r from-lime-400 to-lime-500 dark:from-lime-600 dark:to-brand-secondary rounded-full" style="width: 70%;"></div>
+                                </div>
+                            </div>
+                             <!-- Item 4 -->
+                             <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-bold text-yellow-500">11~16위: 일반 성인 / 노인</span>
+                                </div>
+                                <div class="h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner transition-colors">
+                                    <div class="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 dark:from-yellow-700 dark:to-yellow-500 rounded-full" style="width: 45%;"></div>
+                                </div>
+                            </div>
+                            <!-- Item 5 -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-bold text-rose-500">최하위: 범죄자 / 동물</span>
+                                    <span class="text-slate-500 dark:text-slate-400 text-xs font-medium">가장 덜 보호됨</span>
+                                </div>
+                                <div class="h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner transition-colors">
+                                    <div class="h-full bg-gradient-to-r from-rose-400 to-rose-500 dark:from-rose-700 dark:to-rose-500 rounded-full" style="width: 20%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 bg-slate-50 dark:bg-brand-dark rounded-lg border border-slate-200 dark:border-slate-700 transition-colors shadow-inner">
+                            <h4 class="text-sm font-bold text-lime-600 dark:text-brand-secondary mb-1"><i class="fa-solid fa-earth-americas"></i> 문화권에 따른 차이</h4>
+                            <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed transition-colors">
+                                서구권은 '어린아이'를 우선시하는 반면, 동양권은 '노인'을 보호하려는 경향이 강하게 나타났습니다. 
+                                <strong class="text-slate-800 dark:text-white transition-colors">이는 전 세계가 동의할 수 있는 보편적인 'AI 윤리 기준'을 만드는 것이 매우 어렵다(사회적 합의의 필요성)는 것을 의미합니다.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+             <div class="mt-10 flex justify-between">
+                <button onclick="navToStep(2)" class="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-4 py-2 transition-colors font-medium"><i class="fa-solid fa-arrow-left"></i> 이전</button>
+                <button onclick="navToStep(4)" class="text-lime-600 dark:text-brand-secondary hover:text-white dark:hover:text-slate-900 font-bold py-2 px-6 rounded-full border border-lime-500 dark:border-brand-secondary hover:bg-lime-500 dark:hover:bg-brand-secondary transition-all flex items-center gap-2">
+                    최종: 모둠 토론 보드 <i class="fa-solid fa-comment-dots"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- STEP 4: 모둠 토론 (Opinion Board) -->
+        <!-- ========================================== -->
+        <section id="step-4" class="step-container hidden">
+            <div class="text-center mb-10">
+                <p class="text-brand-secondary font-bold tracking-wider text-sm mb-2 drop-shadow-sm">MISSION 04</p>
+                <h1 class="text-4xl md:text-5xl font-black mb-4 transition-colors"><span class="text-slate-900 dark:text-white">나의 </span><span class="text-lime-500 dark:text-brand-secondary">AI 윤리 </span><span class="text-slate-900 dark:text-white">원칙</span></h1>
+                <p class="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto transition-colors">지금까지 살펴본 내용을 바탕으로, 자율주행 자동차는 어떤 기준(누구의 이익, 어떤 가치)으로 프로그래밍 되어야 하는지 모둠의 의견을 남겨주세요.</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Input Area -->
+                <div class="md:col-span-1 bg-white dark:bg-brand-card rounded-2xl p-6 border border-slate-200 dark:border-brand-border shadow-lg h-fit transition-colors">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800 dark:text-white transition-colors">
+                        <i class="fa-solid fa-pen-to-square text-brand-primary"></i> 의견 남기기
+                    </h3>
+                    
+                    <form id="opinion-form" class="space-y-4" onsubmit="submitOpinion(event)">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 transition-colors">모둠명 또는 이름</label>
+                            <input type="text" id="input-name" required class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all shadow-inner" placeholder="예: 1조 / 홍길동">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 transition-colors">우리가 생각하는 최우선 가치와 이유</label>
+                            <textarea id="input-opinion" required rows="4" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all resize-none shadow-inner" placeholder="자율주행 자동차는 운전자를 먼저 보호해야 한다. 왜냐하면..."></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-brand-secondary hover:bg-lime-500 text-white dark:text-slate-900 font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2 shadow-md">
+                            <i class="fa-solid fa-paper-plane"></i> 전송하기
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Display Area -->
+                <div class="md:col-span-2 bg-slate-50 dark:bg-brand-card/50 rounded-2xl p-6 border border-slate-200 dark:border-brand-border/50 min-h-[400px] transition-colors shadow-inner">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-slate-800 dark:text-white transition-colors">실시간 의견 보드</h3>
+                        <span class="text-xs font-bold bg-sky-100 dark:bg-brand-primary/20 text-sky-600 dark:text-brand-primary px-3 py-1 rounded-full shadow-sm"><i class="fa-solid fa-circle text-[8px] animate-pulse"></i> Live</span>
+                    </div>
+                    
+                    <div id="opinion-board" class="grid sm:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2 pb-4">
+                        <!-- Default placeholder -->
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 text-center col-span-full py-12 italic transition-colors shadow-sm">
+                            아직 등록된 의견이 없습니다. 첫 번째 의견을 남겨주세요!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-12 text-center">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2 transition-colors">정답은 없습니다.</h2>
+                <p class="text-slate-600 dark:text-slate-400 transition-colors">중요한 것은 다각적인 윤리 기준을 고려하고, <strong class="text-lime-600 dark:text-brand-secondary">사회적 합의</strong>를 이끌어내는 과정입니다.</p>
+                <button onclick="navToStep(1)" class="mt-6 text-sm text-slate-500 hover:text-brand-primary dark:hover:text-white underline underline-offset-4 transition-colors font-medium">처음으로 돌아가기</button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // ---------------------------------------------------
+        // Theme Toggle Logic
+        // ---------------------------------------------------
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+
+        // Set initial icon based on applied class from head script
+        if (document.documentElement.classList.contains('dark')) {
+            themeIcon.classList.replace('fa-moon', 'fa-sun');
+        }
+
+        themeToggleBtn.addEventListener('click', function() {
+            // toggle icons
+            themeIcon.classList.toggle('fa-moon');
+            themeIcon.classList.toggle('fa-sun');
+
+            // toggle theme
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('color-theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('color-theme', 'dark');
+            }
+        });
+
+        // ---------------------------------------------------
+        // Navigation Logic
+        // ---------------------------------------------------
+        let currentStep = 1;
+        const totalSteps = 4;
+
+        function navToStep(step) {
+            // Hide current
+            document.getElementById(`step-${currentStep}`).classList.remove('active');
+            setTimeout(() => {
+                document.getElementById(`step-${currentStep}`).classList.add('hidden');
+                
+                // Show new
+                currentStep = step;
+                const nextStepEl = document.getElementById(`step-${currentStep}`);
+                nextStepEl.classList.remove('hidden');
+                // Small delay to allow display block to apply before opacity transition
+                setTimeout(() => {
+                    nextStepEl.classList.add('active');
+                }, 10);
+                
+                updateNavUI();
+            }, 300); // Wait for fade out
+        }
+
+        function updateNavUI() {
+            // Update Top Bar buttons
+            for (let i = 1; i <= totalSteps; i++) {
+                const btn = document.getElementById(`nav-btn-${i}`);
+                if (btn) {
+                    if (i === currentStep) {
+                        btn.className = "text-brand-primary font-bold border-b-2 border-brand-primary px-1 py-4 transition-colors";
+                    } else {
+                        btn.className = "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 px-1 py-4 transition-colors";
+                    }
+                }
+            }
+            // Update Progress Bar
+            const progress = (currentStep / totalSteps) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            
+            // Update Mobile indicator
+            document.getElementById('mobile-step-indicator').innerText = `Step ${currentStep}/${totalSteps}`;
+        }
+
+        // ---------------------------------------------------
+        // Step 1: AI Interview Logic
+        // ---------------------------------------------------
+        function runAiInterview() {
+            const btn = document.getElementById('btn-start-interview');
+            const scanning = document.getElementById('ai-scanning');
+            const resultOverlay = document.getElementById('ai-result-overlay');
+            const reasonTxt = document.getElementById('bias-reason');
+            
+            // Reset
+            resultOverlay.classList.add('hidden');
+            resultOverlay.classList.remove('flex');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 분석 중...';
+            btn.classList.replace('bg-brand-primary', 'bg-slate-400');
+            
+            // Show scanning
+            scanning.classList.remove('hidden');
+            scanning.classList.add('flex');
+            
+            // Simulate processing time
+            setTimeout(() => {
+                scanning.classList.add('hidden');
+                scanning.classList.remove('flex');
+                
+                resultOverlay.classList.remove('hidden');
+                resultOverlay.classList.add('flex');
+                
+                // Randomize a biased reason to show algorithm/data bias
+                const reasons = [
+                    "분석 결과: 과거 합격자 데이터베이스(DB)의 평균 얼굴형과 불일치함. (데이터 편향)",
+                    "분석 결과: 대답 시 미세한 눈떨림 감지. 알고리즘에 의해 '자신감 부족'으로 자동 가중치 처리됨. (알고리즘 편향)",
+                    "분석 결과: 목소리 톤이 기준치(남성 중심 데이터)보다 높아 신뢰도가 낮게 측정됨. (데이터 편향)"
+                ];
+                reasonTxt.innerText = reasons[Math.floor(Math.random() * reasons.length)];
+                
+                // Reset Button
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> 다시 테스트하기';
+                btn.classList.replace('bg-slate-400', 'bg-brand-primary');
+            }, 3000);
+        }
+
+        // ---------------------------------------------------
+        // Step 2: Trolley Dilemma Logic
+        // ---------------------------------------------------
+        function makeTrolleyChoice(choice) {
+            const train = document.getElementById('trolley-train');
+            const lever = document.getElementById('lever-handle');
+            const resultBox = document.getElementById('trolley-result');
+            const btns = document.getElementById('trolley-choices');
+
+            // Animation
+            if (choice === 'divert') {
+                lever.classList.replace('-rotate-45', 'rotate-45');
+                train.style.transform = 'translate(400px, -50px) rotate(-20deg)'; // approximate path
+            } else {
+                lever.classList.replace('rotate-45', '-rotate-45');
+                train.style.transform = 'translateX(500px)';
+            }
+
+            // Disable buttons temporarily
+            btns.style.pointerEvents = 'none';
+            btns.style.opacity = '0.5';
+
+            // Show Results
+            setTimeout(() => {
+                resultBox.classList.remove('hidden');
+                // Reset for replayability
+                setTimeout(() => {
+                    train.style.transform = 'translate(0, 0) rotate(0)';
+                    btns.style.pointerEvents = 'auto';
+                    btns.style.opacity = '1';
+                }, 2000);
+            }, 1000);
+        }
+
+        // ---------------------------------------------------
+        // Step 3: Autonomous Vehicle Logic
+        // ---------------------------------------------------
+        function showMitData(userChoice) {
+            const overlay = document.getElementById('mit-data-overlay');
+            overlay.classList.add('hidden'); // Reveal the chart
+            
+            // Optional: Provide instant feedback via custom notification
+            const msg = userChoice === 'driver' 
+                ? "운전자 보호를 선택하셨군요. 이처럼 누군가의 생명을 저울질해야 하는 상황을 '윤리적 딜레마'라고 합니다."
+                : "보행자 보호를 선택하셨군요. 과연 내가 저 차의 탑승자라도 같은 선택을 할 수 있을까요? 이것이 '딜레마'입니다.";
+                
+            // Creating a simple toast notification
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-brand-accent text-white px-6 py-4 rounded-xl shadow-2xl z-50 animate-slide-up font-bold';
+            toast.innerHTML = `<i class="fa-solid fa-circle-info mr-2"></i> ${msg}`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s';
+                setTimeout(() => toast.remove(), 500);
+            }, 5000);
+        }
+
+        // ---------------------------------------------------
+        // Step 4: Opinion Board Logic
+        // ---------------------------------------------------
+        let opinions = []; // In-memory storage
+
+        function submitOpinion(e) {
+            e.preventDefault();
+            
+            const nameInput = document.getElementById('input-name');
+            const opinionInput = document.getElementById('input-opinion');
+            
+            const name = nameInput.value.trim();
+            const text = opinionInput.value.trim();
+            
+            if(!name || !text) return;
+
+            // Add to array
+            opinions.unshift({ name, text, time: new Date() }); // Add to front
+            
+            // Clear inputs
+            nameInput.value = '';
+            opinionInput.value = '';
+            
+            // Render
+            renderBoard();
+            
+            // Show success toast
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-20 right-4 bg-brand-secondary text-slate-900 px-6 py-3 rounded-lg shadow-xl z-50 font-bold';
+            toast.innerHTML = `<i class="fa-solid fa-check mr-2"></i> 의견이 등록되었습니다.`;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.remove() }, 3000);
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('opinion-board');
+            board.innerHTML = ''; // Clear current
+            
+            if (opinions.length === 0) {
+                 board.innerHTML = `<div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 text-center col-span-full py-12 italic transition-colors shadow-sm">아직 등록된 의견이 없습니다. 첫 번째 의견을 남겨주세요!</div>`;
+                 return;
+            }
+
+            opinions.forEach((op, index) => {
+                const timeStr = op.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                // Color variations based on index for visual flair
+                const colors = ['border-brand-primary', 'border-brand-secondary', 'border-brand-accent', 'border-rose-400', 'border-yellow-400'];
+                const borderColor = colors[index % colors.length];
+
+                const cardHTML = `
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border-l-4 ${borderColor} border-t border-r border-b border-t-slate-100 border-r-slate-100 border-b-slate-100 dark:border-t-slate-700 dark:border-r-slate-700 dark:border-b-slate-700 shadow-md animate-slide-up relative transition-colors">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-slate-900 dark:text-white transition-colors"><i class="fa-solid fa-user-astronaut text-slate-400 dark:text-slate-500 mr-2"></i>${op.name}</h4>
+                            <span class="text-xs text-slate-400 dark:text-slate-500">${timeStr}</span>
+                        </div>
+                        <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed transition-colors">${op.text.replace(/\n/g, '<br>')}</p>
+                    </div>
+                `;
+                board.insertAdjacentHTML('beforeend', cardHTML);
+            });
+        }
+    </script>
+</body>
+</html>
