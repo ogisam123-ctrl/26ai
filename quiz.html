@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>마크다운 기반 스마트 퀴즈 웹 앱 - 퀴즈</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #0b0f19 100%);
+      --card-bg: rgba(17, 24, 39, 0.85);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --primary-color: #6366f1;
+      --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      --accent-cyan: #06b6d4;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --text-main: #f9fafb;
+      --text-sub: #9ca3af;
+      --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      min-height: 100vh;
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    .app-card {
+      width: 100%;
+      max-width: 820px;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      border-radius: 28px;
+      padding: 40px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), var(--shadow-glow);
+      position: relative;
+    }
+
+    /* Navigation Bar */
+    .nav-menu {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .nav-item {
+      padding: 10px 22px;
+      border-radius: 14px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-item:hover {
+      background: rgba(99, 102, 241, 0.18);
+      color: var(--text-main);
+      transform: translateY(-1px);
+    }
+
+    .nav-item.active {
+      background: var(--primary-gradient);
+      color: #ffffff;
+      border-color: transparent;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+    }
+
+    /* Header */
+    .app-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .app-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      word-break: keep-all;
+    }
+
+    /* Upload Screen */
+    #upload-screen {
+      display: block;
+    }
+
+    .drop-zone {
+      border: 2px dashed rgba(99, 102, 241, 0.4);
+      border-radius: 20px;
+      padding: 48px 24px;
+      text-align: center;
+      background: rgba(15, 23, 42, 0.4);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+    }
+
+    .drop-icon {
+      font-size: 3.2rem;
+      margin-bottom: 16px;
+    }
+
+    .drop-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .drop-sub {
+      font-size: 0.9rem;
+      color: var(--text-sub);
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary-gradient);
+      color: #ffffff;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.6);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 28px 0;
+      color: var(--text-sub);
+      font-size: 0.85rem;
+    }
+
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .divider span {
+      padding: 0 14px;
+    }
+
+    /* Quiz Screen */
+    #quiz-screen {
+      display: none;
+    }
+
+    .quiz-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 28px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary-gradient);
+      border-radius: 10px;
+      transition: width 0.3s ease;
+    }
+
+    .category-tag {
+      display: inline-block;
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .question-title {
+      font-size: 1.25rem;
+      line-height: 1.6;
+      font-weight: 700;
+      margin-bottom: 24px;
+      word-break: keep-all;
+    }
+
+    .options-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .option-card {
+      display: flex;
+      align-items: center;
+      padding: 16px 20px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .option-card:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .option-card.selected {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: var(--primary-color);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+    }
+
+    .option-card.correct {
+      background: rgba(16, 185, 129, 0.2) !important;
+      border-color: var(--accent-green) !important;
+      color: #a7f3d0;
+    }
+
+    .option-card.wrong {
+      background: rgba(239, 68, 68, 0.2) !important;
+      border-color: var(--accent-red) !important;
+      color: #fca5a5;
+    }
+
+    .option-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      margin-right: 16px;
+      flex-shrink: 0;
+    }
+
+    .option-card.selected .option-num {
+      background: var(--primary-color);
+      color: #fff;
+    }
+    .option-card.correct .option-num {
+      background: var(--accent-green);
+      color: #fff;
+    }
+    .option-card.wrong .option-num {
+      background: var(--accent-red);
+      color: #fff;
+    }
+
+    .explanation-box {
+      background: rgba(15, 23, 42, 0.8);
+      border-left: 4px solid var(--accent-cyan);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 28px;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .explanation-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+    }
+
+    .explanation-body {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    /* Result Screen */
+    #result-screen {
+      display: none;
+      text-align: center;
+    }
+
+    .score-badge {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      background: var(--primary-gradient);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto 20px;
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.5);
+    }
+
+    .score-val {
+      font-size: 2.5rem;
+      font-weight: 800;
+    }
+
+    .score-sub {
+      font-size: 0.8rem;
+      opacity: 0.8;
+    }
+
+    .result-msg {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    .review-container {
+      text-align: left;
+      margin-bottom: 28px;
+      max-height: 350px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      .app-card { padding: 24px 20px; }
+      .app-title { font-size: 1.4rem; }
+      .drop-zone { padding: 32px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-card">
+    <!-- Navigation Menu (Home / 퀴즈) -->
+    <nav class="nav-menu">
+      <a href="index.html" class="nav-item">🏠 Home</a>
+      <a href="quiz.html" class="nav-item active">📝 퀴즈</a>
+    </nav>
+
+    <!-- Header with Dynamic Title extracted from Markdown -->
+    <div class="app-header">
+      <span class="badge">📖 마크다운 자동 분석 퀴즈</span>
+      <h1 class="app-title" id="doc-title">마크다운 파일 기반 퀴즈</h1>
+    </div>
+
+    <!-- 1. Upload Screen -->
+    <div id="upload-screen">
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-icon">📄</div>
+        <div class="drop-title">마크다운(.md) 파일 첨부하기</div>
+        <div class="drop-sub">마크다운 파일에서 제목, 문제, 정답을 자동 추출하여 퀴즈를 생성합니다.</div>
+        <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+          📂 파일 선택하기
+        </button>
+        <input type="file" id="file-input" accept=".md,.txt" style="display: none;">
+      </div>
+
+      <div class="divider"><span>또는</span></div>
+
+      <button class="btn btn-secondary" id="load-sample-btn" style="width: 100%;">
+        ⚙️ 샘플 모의고사 [설비보전기사 필기 모의고사 260721.md] 풀기
+      </button>
+    </div>
+
+    <!-- 2. Quiz Screen -->
+    <div id="quiz-screen">
+      <div class="quiz-meta">
+        <span id="file-name-tag">📂 파일명</span>
+        <span>문제 <strong id="curr-num">1</strong> / <span id="total-num">10</span></span>
+      </div>
+
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+
+      <div class="category-tag" id="category-tag">과목명</div>
+      <h2 class="question-title" id="question-text">문제 내용</h2>
+
+      <div class="options-grid" id="options-container">
+        <!-- Dynamic options -->
+      </div>
+
+      <div class="explanation-box" id="explanation-box">
+        <div class="explanation-title">📖 정답 및 상세 해설</div>
+        <div class="explanation-body" id="explanation-text">해설 내용</div>
+      </div>
+
+      <div class="controls">
+        <button class="btn btn-secondary" id="prev-btn" disabled>⬅️ 이전</button>
+        <button class="btn btn-primary" id="action-btn" disabled>정답 확인 🔍</button>
+      </div>
+    </div>
+
+    <!-- 3. Result Screen -->
+    <div id="result-screen">
+      <div class="score-badge">
+        <div class="score-val" id="score-val">0점</div>
+        <div class="score-sub">최종 점수</div>
+      </div>
+
+      <div class="result-msg" id="result-msg">수고하셨습니다!</div>
+
+      <h3 style="text-align: left; font-size: 1.05rem; margin-bottom: 12px; font-weight: 700;">
+        📝 오답 노트 & 상세 해설 복습
+      </h3>
+
+      <div class="review-container" id="review-container">
+        <!-- Dynamic review items -->
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button class="btn btn-secondary" id="re-upload-btn" style="flex: 1;">📂 다른 파일 선택</button>
+        <button class="btn btn-primary" id="retry-btn" style="flex: 1;">🔄 새로운 10문제 풀기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Embed Sample Quiz Dataset for fallback -->
+  <script src="quiz-data.js"></script>
+
+  <script>
+    // App State
+    let quizDataset = [];
+    let activeQuizList = [];
+    let currentIndex = 0;
+    let userAnswers = [];
+    let submittedStatus = [];
+    let currentFileName = "";
+    let extractedDocumentTitle = "";
+
+    // Elements
+    const docTitleEl = document.getElementById('doc-title');
+    const uploadScreen = document.getElementById('upload-screen');
+    const quizScreen = document.getElementById('quiz-screen');
+    const resultScreen = document.getElementById('result-screen');
+
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const loadSampleBtn = document.getElementById('load-sample-btn');
+
+    const fileNameTag = document.getElementById('file-name-tag');
+    const currNumEl = document.getElementById('curr-num');
+    const totalNumEl = document.getElementById('total-num');
+    const progressFill = document.getElementById('progress-fill');
+    const categoryTag = document.getElementById('category-tag');
+    const questionText = document.getElementById('question-text');
+    const optionsContainer = document.getElementById('options-container');
+    const explanationBox = document.getElementById('explanation-box');
+    const explanationText = document.getElementById('explanation-text');
+
+    const prevBtn = document.getElementById('prev-btn');
+    const actionBtn = document.getElementById('action-btn');
+    const retryBtn = document.getElementById('retry-btn');
+    const reUploadBtn = document.getElementById('re-upload-btn');
+
+    // --------------------------------------------------------
+    // Title & Markdown Parser Logic
+    // --------------------------------------------------------
+    function extractTitleFromMarkdown(mdText, fallbackName) {
+      const lines = mdText.split('\n');
+      for (let line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+          return trimmed.replace(/^#\s*/, '').replace(/[*_~`]/g, '').trim();
+        }
+      }
+      return fallbackName ? fallbackName.replace(/\.[^/.]+$/, "") : "마크다운 기반 퀴즈";
+    }
+
+    function parseMarkdownToQuiz(mdText) {
+      const lines = mdText.split('\n');
+      const questions = [];
+      let currentCategory = "일반";
+      let currentQ = null;
+
+      const circleToNum = (str) => {
+        if (str.includes('①') || str.startsWith('1.') || str.startsWith('1)')) return 1;
+        if (str.includes('②') || str.startsWith('2.') || str.startsWith('2)')) return 2;
+        if (str.includes('③') || str.startsWith('3.') || str.startsWith('3)')) return 3;
+        if (str.includes('④') || str.startsWith('4.') || str.startsWith('4)')) return 4;
+        return null;
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        if (line.startsWith('## ') && !line.startsWith('### ')) {
+          currentCategory = line.replace(/^##\s*/, '').trim();
+          continue;
+        }
+
+        const qMatch = line.match(/^(?:###\s*)?(\d+)\.\s+(.*)/);
+        if (qMatch) {
+          if (currentQ && currentQ.options.length >= 2 && currentQ.answer) {
+            questions.push(currentQ);
+          }
+          currentQ = {
+            id: parseInt(qMatch[1], 10),
+            category: currentCategory,
+            question: qMatch[2].trim(),
+            options: [],
+            answer: 1,
+            explanation: ""
+          };
+          continue;
+        }
+
+        if (!currentQ) continue;
+
+        const optMatch = line.match(/^([①②③④]|\d+[\.\)])\s*(.*)/);
+        if (optMatch) {
+          currentQ.options.push(optMatch[2].trim());
+          continue;
+        }
+
+        if (line.includes('[정답]') || line.includes('정답:')) {
+          const numMatch = line.match(/([①②③④1234])/);
+          if (numMatch) {
+            currentQ.answer = circleToNum(numMatch[1]) || parseInt(numMatch[1], 10);
+          }
+          continue;
+        }
+
+        if (line.includes('[상세 해설]') || line.includes('해설:')) {
+          const expl = line.replace(/.*\[상세 해설\]\s*/, '').replace(/.*해설:\s*/, '');
+          currentQ.explanation = expl.trim();
+          continue;
+        }
+
+        if (currentQ.explanation && !line.startsWith('---') && !line.startsWith('#')) {
+          currentQ.explanation += ' ' + line;
+        }
+      }
+
+      if (currentQ && currentQ.options.length >= 2 && currentQ.answer) {
+        questions.push(currentQ);
+      }
+
+      return questions;
+    }
+
+    // --------------------------------------------------------
+    // Quiz Lifecycle
+    // --------------------------------------------------------
+    function startQuiz(dataset, fileName, docTitle) {
+      if (!dataset || dataset.length === 0) {
+        alert("마크다운 파일에서 유효한 문제와 정답을 찾지 못했습니다.");
+        return;
+      }
+
+      quizDataset = dataset;
+      currentFileName = fileName;
+      extractedDocumentTitle = docTitle || "마크다운 기반 퀴즈";
+
+      docTitleEl.textContent = extractedDocumentTitle;
+
+      const pickCount = Math.min(10, quizDataset.length);
+      const shuffled = [...quizDataset].sort(() => 0.5 - Math.random());
+      activeQuizList = shuffled.slice(0, pickCount);
+
+      currentIndex = 0;
+      userAnswers = new Array(pickCount).fill(null);
+      submittedStatus = new Array(pickCount).fill(false);
+
+      uploadScreen.style.display = 'none';
+      resultScreen.style.display = 'none';
+      quizScreen.style.display = 'block';
+
+      fileNameTag.textContent = `📂 ${currentFileName}`;
+      totalNumEl.textContent = pickCount;
+
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      const q = activeQuizList[currentIndex];
+      currNumEl.textContent = currentIndex + 1;
+      progressFill.style.width = `${((currentIndex + 1) / activeQuizList.length) * 100}%`;
+
+      categoryTag.textContent = q.category || "일반";
+      questionText.textContent = `${currentIndex + 1}. ${q.question}`;
+
+      optionsContainer.innerHTML = '';
+
+      q.options.forEach((optText, idx) => {
+        const optNum = idx + 1;
+        const optCard = document.createElement('div');
+        optCard.className = 'option-card';
+
+        if (userAnswers[currentIndex] === optNum) {
+          optCard.classList.add('selected');
+        }
+
+        if (submittedStatus[currentIndex]) {
+          if (optNum === q.answer) {
+            optCard.classList.add('correct');
+          } else if (userAnswers[currentIndex] === optNum && optNum !== q.answer) {
+            optCard.classList.add('wrong');
+          }
+        } else {
+          optCard.addEventListener('click', () => {
+            userAnswers[currentIndex] = optNum;
+            renderQuestion();
+          });
+        }
+
+        optCard.innerHTML = `
+          <div class="option-num">${optNum}</div>
+          <div>${optText}</div>
+        `;
+        optionsContainer.appendChild(optCard);
+      });
+
+      if (submittedStatus[currentIndex]) {
+        explanationBox.style.display = 'block';
+        explanationText.textContent = q.explanation || "상세 해설이 없습니다.";
+      } else {
+        explanationBox.style.display = 'none';
+      }
+
+      prevBtn.disabled = currentIndex === 0;
+
+      if (submittedStatus[currentIndex]) {
+        actionBtn.textContent = currentIndex === activeQuizList.length - 1 ? '결과 보기 🎉' : '다음 문제 ➡️';
+        actionBtn.disabled = false;
+      } else {
+        actionBtn.textContent = '정답 확인 🔍';
+        actionBtn.disabled = userAnswers[currentIndex] === null;
+      }
+    }
+
+    // --------------------------------------------------------
+    // Handlers
+    // --------------------------------------------------------
+    actionBtn.addEventListener('click', () => {
+      if (!submittedStatus[currentIndex]) {
+        submittedStatus[currentIndex] = true;
+        renderQuestion();
+      } else {
+        if (currentIndex < activeQuizList.length - 1) {
+          currentIndex++;
+          renderQuestion();
+        } else {
+          showResults();
+        }
+      }
+    });
+
+    prevBtn.addEventListener('click', () => {
+      if (currentIndex > 0) {
+        currentIndex--;
+        renderQuestion();
+      }
+    });
+
+    function showResults() {
+      quizScreen.style.display = 'none';
+      resultScreen.style.display = 'block';
+
+      let correct = 0;
+      const reviewContainer = document.getElementById('review-container');
+      reviewContainer.innerHTML = '';
+
+      activeQuizList.forEach((q, idx) => {
+        const isCorrect = userAnswers[idx] === q.answer;
+        if (isCorrect) correct++;
+
+        const reviewDiv = document.createElement('div');
+        reviewDiv.style.background = 'rgba(15, 23, 42, 0.6)';
+        reviewDiv.style.border = `1px solid ${isCorrect ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`;
+        reviewDiv.style.borderRadius = '12px';
+        reviewDiv.style.padding = '14px 18px';
+        reviewDiv.style.marginBottom = '10px';
+
+        reviewDiv.innerHTML = `
+          <div style="font-weight: 700; color: ${isCorrect ? '#10b981' : '#ef4444'}; margin-bottom: 4px;">
+            Q${idx + 1}. [${isCorrect ? '정답 ⭕' : '오답 ❌'}] (${q.category})
+          </div>
+          <div style="font-weight: 600; margin-bottom: 6px;">${q.question}</div>
+          <div style="font-size: 0.85rem; color: #cbd5e1;">
+            선택한 답: ${userAnswers[idx] || '미선택'}번 | <strong style="color: #10b981;">정답: ${q.answer}번</strong>
+          </div>
+          <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 6px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px;">
+            💡 해설: ${q.explanation || '해설 없음'}
+          </div>
+        `;
+        reviewContainer.appendChild(reviewDiv);
+      });
+
+      const score = Math.round((correct / activeQuizList.length) * 100);
+      document.getElementById('score-val').textContent = `${score}점`;
+      document.getElementById('result-msg').textContent = score >= 60 ? '🎉 합격 기준을 통과하셨습니다!' : '📢 오답을 확인하고 재도전해 보세요!';
+    }
+
+    retryBtn.addEventListener('click', () => {
+      startQuiz(quizDataset, currentFileName, extractedDocumentTitle);
+    });
+
+    reUploadBtn.addEventListener('click', () => {
+      resultScreen.style.display = 'none';
+      quizScreen.style.display = 'none';
+      uploadScreen.style.display = 'block';
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const mdText = evt.target.result;
+        const title = extractTitleFromMarkdown(mdText, file.name);
+        const parsedQuestions = parseMarkdownToQuiz(mdText);
+
+        startQuiz(parsedQuestions, file.name, title);
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change'));
+      }
+    });
+
+    loadSampleBtn.addEventListener('click', () => {
+      if (typeof quizData !== 'undefined' && quizData.length > 0) {
+        startQuiz(quizData, "설비보전기사 필기 모의고사 260721.md", "설비보전기사 필기 모의고사 (260721)");
+      } else {
+        alert("기본 모의고사 데이터를 로드하지 못했습니다. md 파일을 업로드 해주세요.");
+      }
+    });
+  </script>
+</body>
+</html>
